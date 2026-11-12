@@ -26,7 +26,7 @@ npm run dev
 (Only torrents seeded by WebRTC-capable peers will have peers.)
 
 ## Features
-- Search torrents across built-in providers (ThePirateBay, 1337x, YTS, EZTV, …).
+- Search torrents across all enabled plugins (The Pirate Bay, EZTV, YTS, Limetorrents, TorLock, Solidtorrents, TorrentProject, TorrentsCSV, …).
 - Add by magnet/URL or `.torrent` file.
 - Stream selected file with HTTP Range support (partial download).
 - Generate 5 preview frames sampled across duration.
@@ -41,7 +41,7 @@ A default `yts.py` (YTS JSON API) is included. Each plugin runs in its own proce
 slow or unreachable plugins are reported in the `errors` array without blocking the rest.
 
 ## Notes
-- Native qBittorrent `.py` plugins are not executed; built-in JS providers cover the
-  same major indexers. Custom JS providers can replicate any source.
+- Additional qBittorrent-style `.py` plugins can be dropped into `search-plugins/` and are
+  picked up on backend restart.
 - Only browser-playable codecs (MP4/WebM/…) are previewable.
 EOF
