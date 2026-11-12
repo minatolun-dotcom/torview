@@ -12,8 +12,8 @@ import TorrentSearchApi from 'torrent-search-api'
 const PORT = process.env.PORT || 3001
 const TOKEN = process.env.TORVIEW_TOKEN || 'torview-dev'
 const TTL_MS = Number(process.env.TORRENT_TTL_MS || 60 * 60 * 1000) // 1h
-const MAX_TOTAL_BYTES = Number(process.env.MAX_TOTAL_BYTES || 5 * 1024 ** 3) // 5GB
-const MAX_TORRENT_BYTES = Number(process.env.MAX_TORRENT_BYTES || 2 * 1024 ** 3) // 2GB
+const MAX_TOTAL_BYTES = Number(process.env.MAX_TOTAL_BYTES || 10 * 1024 ** 3) // 10GB
+const MAX_TORRENT_BYTES = Number(process.env.MAX_TORRENT_BYTES || MAX_TOTAL_BYTES) // default: same as disk cap (10GB); 0 = unlimited
 
 const app = express()
 app.use(cors())
@@ -141,7 +141,7 @@ app.post('/api/torrent/add', upload.single('torrent'), async (req,res)=>{
     if (!src) return res.status(400).json({error:'magnet, url, or torrent file required'})
     const torrent = client.add(src, { path: path.join(os.tmpdir(), 'torview') })
     await waitForReady(torrent)
-    if (torrent.length > MAX_TORRENT_BYTES) {
+    if (MAX_TORRENT_BYTES > 0 && torrent.length > MAX_TORRENT_BYTES) {
       try { client.remove(torrent, ()=>{}) } catch {}
       return res.status(413).json({error:`torrent too large (>${MAX_TORRENT_BYTES} bytes)`})
     }

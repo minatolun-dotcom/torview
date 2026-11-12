@@ -30,6 +30,7 @@ const els = {
 
 let current = null // { id, info }
 let pollTimer = null
+let autoSampled = false
 
 function fmtBytes(n) {
   if (!Number.isFinite(n)) return '?'
@@ -119,6 +120,7 @@ els.fileInput.addEventListener('change', async () => {
 
 function onTorrentAdded(info) {
   current = info
+  autoSampled = false
   els.files.innerHTML = ''
   info.files.forEach((f, i) => {
     const opt = document.createElement('option')
@@ -164,6 +166,7 @@ els.clearBtn.addEventListener('click', async () => {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
   if (current) { try { await fetch('/api/torrent/'+current.id, {method:'DELETE', headers: { 'X-Torview-Token': getToken() } }) } catch {} }
   current = null
+  autoSampled = false
   els.video.removeAttribute('src'); els.video.load()
   els.thumbs.innerHTML = ''; els.clips.innerHTML = ''
   els.progress.style.width = '0%'
@@ -194,50 +197,38 @@ async function captureFrame(video, canvas) {
   return canvas.toDataURL('image/jpeg', 0.8)
 }
 
-// 5-frame preview
-els.previewBtn.addEventListener('click', async () => {
+// Auto-sample: 5 clips of ~2s from 5 parts of the file (no full stream needed)
+async function sampleAll() {
   if (!current) { setStatus('Add a torrent first'); return }
   const v = els.video
   if (!Number.isFinite(v.duration) || v.duration <= 0) { setStatus('Video metadata not loaded yet'); return }
   const n = 5
   const dur = v.duration
-  els.thumbs.innerHTML = ''
-  setStatus('Capturing frames…')
-  const wasPaused = v.paused
-  v.pause()
-  for (let i = 1; i <= n; i++) {
-    const t = (dur/(n+1))*i
-    await seekTo(v, t)
-    await new Promise(r=>setTimeout(r, 150))
-    const c = document.createElement('canvas')
-    const url = await captureFrame(v, c)
-    const img = document.createElement('img')
-    img.src = url
-    img.title = fmtTime(t)
-    els.thumbs.appendChild(img)
+  // stratified random sample points: one clip from each of 5 parts of the file
+  const points = []
+  for (let i = 0; i < n; i++) {
+    const segStart = (dur / n) * i
+    const segEnd = (dur / n) * (i + 1)
+    const t = Math.min(segStart + Math.random() * (segEnd - segStart), Math.max(1, dur - 3))
+    points.push(Math.max(1, t))
   }
-  setStatus(`Captured ${n} frames`)
-  if (!wasPaused) v.play()
-})
-
-// Clip extraction: record ~2s at each sample point
-els.clipBtn.addEventListener('click', async () => {
-  if (!current) { setStatus('Add a torrent first'); return }
-  const v = els.video
-  if (!Number.isFinite(v.duration) || v.duration <= 0) { setStatus('Video metadata not loaded yet'); return }
-  const n = 5
-  const dur = v.duration
+  els.thumbs.innerHTML = ''
   els.clips.innerHTML = ''
-  setStatus('Extracting clips…')
+  setStatus('Sampling 5 clips (~2s each) from 5 parts…')
   v.pause()
-  for (let i = 1; i <= n; i++) {
-    const t = (dur/(n+1))*i
+  for (const t of points) {
     await seekTo(v, t)
     await new Promise(r=>setTimeout(r, 200))
+    const c = document.createElement('canvas')
+    const furl = await captureFrame(v, c)
+    const img = document.createElement('img')
+    img.src = furl
+    img.title = fmtTime(t)
+    els.thumbs.appendChild(img)
     const blob = await captureClip(v, 2)
-    const url = URL.createObjectURL(blob)
+    const curl = URL.createObjectURL(blob)
     const vid = document.createElement('video')
-    vid.src = url
+    vid.src = curl
     vid.controls = true
     vid.muted = true
     vid.title = fmtTime(t)
@@ -249,8 +240,10 @@ els.clipBtn.addEventListener('click', async () => {
     wrap.appendChild(vid)
     els.clips.appendChild(wrap)
   }
-  setStatus(`Extracted ${n} clips`)
-})
+  setStatus(`Sampled ${n} clips`)
+}
+els.previewBtn.addEventListener('click', sampleAll)
+els.clipBtn.addEventListener('click', sampleAll)
 
 async function captureClip(video, seconds) {
   const canvas = document.createElement('canvas')
@@ -299,6 +292,10 @@ els.scrubber.addEventListener('input', async () => {
 // populate scrubber range
 els.video.addEventListener('loadedmetadata', () => {
   els.scrubber.max = 1000
+  if (current && !autoSampled) {
+    autoSampled = true
+    setTimeout(() => { sampleAll().catch(e => setStatus('Sample error: ' + e.message)) }, 400)
+  }
 })
 
 els.tokenInput.value = getToken()
