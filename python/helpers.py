@@ -9,6 +9,13 @@ import html
 
 USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
 
+# some plugins do `from helpers import headers`
+headers = {'User-Agent': USER_AGENT}
+
+urlencode = urllib.parse.urlencode
+quote = urllib.parse.quote
+unquote = urllib.parse.unquote
+
 
 def enable_socks_proxy(enable=True):
     # no-op in this environment

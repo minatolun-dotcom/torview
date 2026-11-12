@@ -26,19 +26,26 @@ npm run dev
 (Only torrents seeded by WebRTC-capable peers will have peers.)
 
 ## Features
-- Search torrents across all enabled plugins (The Pirate Bay, EZTV, YTS, Limetorrents, TorLock, Solidtorrents, TorrentProject, TorrentsCSV, …).
+- Search torrents across all enabled plugins (movies, TV, anime and animation sources).
 - Add by magnet/URL or `.torrent` file.
 - Stream selected file with HTTP Range support (partial download).
-- Generate 5 preview frames sampled across duration.
-- Extract 5 short clips (~2s) at sample points.
-- Scrubber: drag to seek, live thumbnail.
+- Preview overlay with media controls and download progress; click outside to minimize, Close to stop.
 
 ## Search plugins
 Drop any qBittorrent-style Python plugin (`.py`) into `search-plugins/` and restart the backend.
 They are executed via `python/run_plugin.py` with a `novaprinter`/`helpers` shim, so plugins from
 https://github.com/qbittorrent/search-plugins/wiki/Unofficial-search-plugins work as-is.
-A default `yts.py` (YTS JSON API) is included. Each plugin runs in its own process with a 12s timeout;
-slow or unreachable plugins are reported in the `errors` array without blocking the rest.
+Each plugin runs in its own process with a 12s timeout; slow or unreachable plugins are reported
+in the `errors` array without blocking the rest.
+
+Bundled plugins, deliberately limited to movies / TV / anime / animation:
+
+| Movies & TV | Anime & animation |
+| --- | --- |
+| `yts.py`, `eztv.py`, `limetorrents.py`, `piratebay.py`, `solidtorrents.py`, `torlock.py`, `torrentproject.py`, `torrentscsv.py`, `kickasstorrents.py` (1337x), `torrentgalaxy.py`, `magnetdl.py`, `glotorrents.py`, `therarbg.py` | `anidex.py`, `animetosho.py`, `nyaasi.py`, `nyaapantsu.py`, `tokyotoshokan.py`, `subsplease.py`, `mikan.py` |
+
+The unofficial ones are taken unmodified from their maintainers' repositories (see the links on the
+qBittorrent wiki page above).
 
 ## Notes
 - Additional qBittorrent-style `.py` plugins can be dropped into `search-plugins/` and are

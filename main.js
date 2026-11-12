@@ -34,7 +34,7 @@ const els = {
 let current = null // { id, info }
 let pollTimer = null
 let allPlugins = []
-let enabled = new Set()
+let disabled = new Set()
 let results = []
 let sortState = { key: 'seeds', dir: 'desc' }
 const addedCache = new Map()
@@ -78,38 +78,47 @@ function showResults() {
 }
 
 // ---- plugins ----
+// storage holds the *disabled* plugins so newly installed plugins are on by default
 function loadPluginState() {
-  try { const v = JSON.parse(localStorage.getItem('torview-plugins') || 'null'); if (Array.isArray(v)) enabled = new Set(v) } catch {}
+  try {
+    const off = JSON.parse(localStorage.getItem('torview-plugins-off') || 'null')
+    if (Array.isArray(off)) disabled = new Set(off)
+  } catch {}
+  // migrate old enabled-list format
+  try {
+    const legacy = JSON.parse(localStorage.getItem('torview-plugins') || 'null')
+    if (Array.isArray(legacy) && legacy.length) disabled = new Set(allPluginsCache.filter(n => !legacy.includes(n)))
+  } catch {}
 }
-function savePluginState() { localStorage.setItem('torview-plugins', JSON.stringify([...enabled])) }
+function savePluginState() { localStorage.setItem('torview-plugins-off', JSON.stringify([...disabled])) }
+let allPluginsCache = []
 async function loadPlugins() {
-  loadPluginState()
   try {
     const p = await api('/api/search/providers')
     allPlugins = p.map(x => x.name)
-    if (enabled.size === 0) enabled = new Set(allPlugins)
-    else enabled = new Set(allPlugins.filter(n => enabled.has(n))) // drop removed
-    if (enabled.size === 0) enabled = new Set(allPlugins)
+    allPluginsCache = [...allPlugins]
+    loadPluginState()
     renderPlugins()
   } catch (e) { els.pluginList.textContent = 'Backend not reachable' }
 }
+function pluginEnabled(name) { return !disabled.has(name) }
 function renderPlugins() {
   els.pluginList.innerHTML = ''
   for (const name of allPlugins) {
     const btn = document.createElement('button')
-    const on = enabled.has(name)
+    const on = pluginEnabled(name)
     btn.className = `px-3 py-1.5 rounded-full text-xs border transition ${on ? 'bg-accent/15 border-accent text-accent' : 'bg-surface border-border text-muted'}`
     btn.textContent = name.replace(/\.py$/, '')
     btn.onclick = () => {
-      if (enabled.has(name)) enabled.delete(name); else enabled.add(name)
+      if (pluginEnabled(name)) disabled.add(name); else disabled.delete(name)
       savePluginState(); renderPlugins()
     }
     els.pluginList.appendChild(btn)
   }
 }
 els.toggleAllPlugins.addEventListener('click', () => {
-  if (enabled.size === allPlugins.length) enabled = new Set()
-  else enabled = new Set(allPlugins)
+  const allOn = allPlugins.every(pluginEnabled)
+  disabled = allOn ? new Set(allPlugins) : new Set()
   savePluginState(); renderPlugins()
 })
 
@@ -122,8 +131,15 @@ async function doSearch(q) {
   els.searchInput.value = q
   els.tableBody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-muted">Searching…</td></tr>'
   els.emptyState.classList.add('hidden')
+  const active = allPlugins.filter(pluginEnabled)
+  if (!active.length) {
+    els.tableBody.innerHTML = ''
+    els.emptyState.textContent = 'No search plugins enabled. Turn some on below.'
+    els.emptyState.classList.remove('hidden')
+    return
+  }
   try {
-    const pluginsParam = [...enabled].join(',')
+    const pluginsParam = active.join(',')
     const data = await api('/api/search?q=' + encodeURIComponent(q) + (pluginsParam ? '&plugins=' + encodeURIComponent(pluginsParam) : ''))
     results = data.results || []
     renderTable()
