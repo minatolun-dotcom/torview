@@ -139,7 +139,7 @@ app.post('/api/torrent/add', upload.single('torrent'), async (req,res)=>{
     else if (req.body && req.body.magnet) src=req.body.magnet
     else if (req.body && req.body.url) src=req.body.url
     if (!src) return res.status(400).json({error:'magnet, url, or torrent file required'})
-    const torrent = client.add(src, { path: path.join(os.tmpdir(), 'torview') })
+    const torrent = client.add(src, { path: path.join(os.tmpdir(), 'torview'), deselect: true })
     await waitForReady(torrent)
     if (MAX_TORRENT_BYTES > 0 && torrent.length > MAX_TORRENT_BYTES) {
       try { client.remove(torrent, ()=>{}) } catch {}
