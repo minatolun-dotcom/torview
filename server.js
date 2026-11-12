@@ -208,7 +208,12 @@ app.get('/api/search', async (req,res)=>{
   const q=(req.query.q||'').toString().trim()
   if(!q) return res.status(400).json({error:'q required'})
   const limit=Math.min(parseInt(req.query.limit||'40',10)||40,100)
-  const plugins = listPlugins()
+  // optional plugin filter: ?plugins=a.py,b.py
+  let plugins = listPlugins()
+  if (req.query.plugins) {
+    const wanted = String(req.query.plugins).split(',').map(s=>s.trim()).filter(Boolean)
+    if (wanted.length) plugins = plugins.filter(p => wanted.includes(p))
+  }
   if (plugins.length === 0) {
     // fallback to built-in torrent-search-api
     try {
