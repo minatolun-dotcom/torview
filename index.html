@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Torrent Preview</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, sans-serif; background: #0b0d12; color: #e6e8ee; }
+    header { padding: 16px 20px; border-bottom: 1px solid #1e2230; }
+    h1 { margin: 0; font-size: 18px; }
+    main { max-width: 1100px; margin: 0 auto; padding: 20px; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    input[type=text], input[type=search] { flex: 1; min-width: 260px; padding: 10px 12px; border-radius: 8px; border: 1px solid #2a2f40; background: #141826; color: #e6e8ee; }
+    button { padding: 10px 14px; border-radius: 8px; border: 1px solid #2a2f40; background: #1f6feb; color: #fff; cursor: pointer; }
+    button.secondary { background: #141826; color: #e6e8ee; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .card { background: #141826; border: 1px solid #1e2230; border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+    .notice { background: #2a1f00; border: 1px solid #5a4500; color: #ffd27a; padding: 10px 12px; border-radius: 8px; margin-bottom: 14px; font-size: 13px; }
+    video { width: 100%; max-height: 60vh; background: #000; border-radius: 8px; }
+    #progress { height: 8px; background: #1e2230; border-radius: 4px; overflow: hidden; margin-top: 8px; }
+    #progress > div { height: 100%; width: 0%; background: #2ea043; transition: width .2s; }
+    pre { white-space: pre-wrap; font-size: 12px; color: #9aa4bf; margin: 8px 0 0; }
+    .thumbs, .clips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .thumbs img { height: 90px; border-radius: 6px; border: 1px solid #2a2f40; }
+    .clips video { width: 160px; height: 90px; }
+    .clip { display: inline-block; text-align: center; font-size: 12px; color: #9aa4bf; }
+    .results { max-height: 320px; overflow: auto; margin-top: 8px; }
+    .result { padding: 8px; border-bottom: 1px solid #1e2230; display: flex; gap: 8px; align-items: center; }
+    .result .rtitle { flex: 1; font-size: 13px; }
+    .result .rmeta { font-size: 11px; color: #9aa4bf; }
+    select { padding: 10px 12px; border-radius: 8px; border: 1px solid #2a2f40; background: #141826; color: #e6e8ee; }
+    .scrubber-row { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+    .scrubber-row input[type=range] { flex: 1; }
+    #scrubThumb { height: 90px; border-radius: 6px; border: 1px solid #2a2f40; }
+    #providers { font-size: 11px; color: #9aa4bf; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <header><h1>Torrent Preview — universal (backend bridge)</h1></header>
+  <main>
+    <div class="notice">
+      Universal mode: torrents are fetched by a local backend (Node + WebTorrent over TCP/UDP), so any magnet works — not just WebRTC peers.
+      Run with <code>npm run dev:full</code>. The backend also provides torrent search across the built-in providers (qBittorrent-style).
+    </div>
+
+    <div class="card">
+      <h3>Search torrents</h3>
+      <div class="row">
+        <input type="search" id="searchInput" placeholder="search query…" />
+        <button id="searchBtn">Search</button>
+      </div>
+      <div id="providers"></div>
+      <div class="results" id="searchResults"></div>
+    </div>
+
+    <div class="card">
+      <h3>Access token</h3>
+      <div class="row">
+        <input type="text" id="tokenInput" placeholder="torview-dev" />
+        <button class="secondary" id="tokenBtn">Save</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Add torrent</h3>
+      <div class="row">
+        <input type="text" id="torrentId" placeholder="magnet:?xt=urn:btih:… or http(s) URL" />
+        <button id="addBtn">Add</button>
+        <button class="secondary" id="fileBtn">Open .torrent</button>
+        <input type="file" id="fileInput" accept=".torrent,application/x-bittorrent" hidden />
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Stream</h3>
+      <div class="row">
+        <select id="files"></select>
+        <button class="secondary" id="clearBtn">Clear</button>
+      </div>
+      <video id="video" controls preload="metadata"></video>
+      <div id="progress"><div></div></div>
+      <pre id="status">Ready.</pre>
+    </div>
+
+    <div class="card">
+      <h3>Preview</h3>
+      <div class="row">
+        <button id="previewBtn">Generate 5 frames</button>
+        <button class="secondary" id="clipBtn">Extract 5 clips</button>
+      </div>
+      <div class="thumbs" id="thumbs"></div>
+      <div class="clips" id="clips"></div>
+      <div class="scrubber-row">
+        <input type="range" id="scrubber" min="0" max="1000" value="0" />
+        <img id="scrubThumb" alt="scrub" />
+      </div>
+    </div>
+  </main>
+  <script type="module" src="/main.js"></script>
+</body>
+</html>
