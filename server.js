@@ -174,7 +174,8 @@ app.get('/api/torrent/:id/file/:index', (req,res)=>{
   const file=t.files[idx]
   const size=file.length
   const mime=mimeFor(file.name)
-  const range=req.headers.range
+  const MAX_CHUNK = 2 * 1024 * 1024
+  const range=req.headers.range || 'bytes=0-'
   const sendStream=(start,end)=>{
     res.status(range?206:200)
     if (range) res.set('Content-Range',`bytes ${start}-${end}/${size}`)
@@ -190,7 +191,9 @@ app.get('/api/torrent/:id/file/:index', (req,res)=>{
     const m=/bytes=(\d+)-(\d*)/.exec(range)
     if(!m){ res.status(416).set('Content-Range',`bytes */${size}`).end(); return }
     const start=parseInt(m[1],10)
-    const end=m[2]?parseInt(m[2],10):size-1
+    let end=m[2]?parseInt(m[2],10):size-1
+    if (!m[2]) end = Math.min(start + MAX_CHUNK - 1, size - 1)
+    if (end - start + 1 > MAX_CHUNK) end = start + MAX_CHUNK - 1
     if(!Number.isFinite(start)||!Number.isFinite(end)||start>=size||end>=size||start>end||start<0){
       res.status(416).set('Content-Range',`bytes */${size}`).end(); return
     }

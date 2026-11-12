@@ -25,6 +25,7 @@ const els = {
   modalVideo: document.getElementById('modalVideo'),
   modalProgress: document.getElementById('modalProgress'),
   modalStatus: document.getElementById('modalStatus'),
+  reopenBtn: document.getElementById('reopenBtn'),
   fileInput: document.getElementById('fileInput'),
 }
 
@@ -34,6 +35,7 @@ let allPlugins = []
 let enabled = new Set()
 let results = []
 let sortState = { key: 'seeds', dir: 'desc' }
+const addedCache = new Map()
 
 function fmtBytes(n) {
   if (!Number.isFinite(n)) return '?'
@@ -214,17 +216,36 @@ async function addTorrentFromFile(file) {
 }
 async function addAndPreviewMagnet(magnet) {
   showResults()
+  if (addedCache.has(magnet)) { openPreview(addedCache.get(magnet)); return }
+  // show player immediately while metadata loads
+  current = null
+  els.modalTitle.textContent = 'Loading…'
+  els.modalVideo.removeAttribute('src'); els.modalVideo.load()
+  els.modal.classList.remove('hidden')
+  els.modalStatus.textContent = 'Adding torrent / fetching metadata…'
+  els.modalProgress.style.width = '0%'
   try {
     const info = await addTorrentFromMagnet(magnet)
+    info._magnet = magnet
+    addedCache.set(magnet, info)
     openPreview(info)
-  } catch (e) { alert('Error: ' + e.message) }
+  } catch (e) { els.modalStatus.textContent = 'Error: ' + e.message }
 }
 async function previewMagnet(magnet) {
   if (!magnet) { alert('No magnet link for this result'); return }
+  if (addedCache.has(magnet)) { openPreview(addedCache.get(magnet)); return }
+  current = null
+  els.modalTitle.textContent = 'Loading…'
+  els.modalVideo.removeAttribute('src'); els.modalVideo.load()
+  els.modal.classList.remove('hidden')
+  els.modalStatus.textContent = 'Adding torrent / fetching metadata…'
+  els.modalProgress.style.width = '0%'
   try {
     const info = await addTorrentFromMagnet(magnet)
+    info._magnet = magnet
+    addedCache.set(magnet, info)
     openPreview(info)
-  } catch (e) { alert('Error: ' + e.message) }
+  } catch (e) { els.modalStatus.textContent = 'Error: ' + e.message }
 }
 
 function streamUrl(id, fileIndex) { return `/api/torrent/${id}/file/${fileIndex}` }
@@ -232,6 +253,7 @@ function streamUrl(id, fileIndex) { return `/api/torrent/${id}/file/${fileIndex}
 function openPreview(info) {
   current = info
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+  els.reopenBtn.classList.add('hidden')
   els.modalTitle.textContent = info.name || 'Preview'
   const largest = (info.files||[]).reduce((a,b)=> (b.length||0)>(a.length||0)?b:a, info.files && info.files[0])
   const idx = largest ? info.files.indexOf(largest) : 0
@@ -247,10 +269,22 @@ function closePreview() {
   els.modal.classList.add('hidden')
   els.modalVideo.pause()
   els.modalVideo.removeAttribute('src'); els.modalVideo.load()
-  current = null
+  if (current) els.reopenBtn.classList.remove('hidden')
+}
+function reopenPreview() {
+  if (!current) return
+  els.reopenBtn.classList.add('hidden')
+  els.modalTitle.textContent = current.name || 'Preview'
+  const largest = (current.files||[]).reduce((a,b)=> (b.length||0)>(a.length||0)?b:a, current.files && current.files[0])
+  const idx = largest ? current.files.indexOf(largest) : 0
+  els.modalVideo.src = streamUrl(current.id, idx)
+  els.modalVideo.load()
+  els.modal.classList.remove('hidden')
+  startPolling()
 }
 els.modalClose.addEventListener('click', closePreview)
 els.modal.addEventListener('click', e => { if (e.target === els.modal) closePreview() })
+els.reopenBtn.addEventListener('click', reopenPreview)
 
 function startPolling() {
   if (pollTimer) clearInterval(pollTimer)
