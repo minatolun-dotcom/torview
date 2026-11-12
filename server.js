@@ -6,6 +6,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import { pathToFileURL } from 'node:url'
 import WebTorrent from 'webtorrent'
+import { spawn } from 'node:child_process'
 import TorrentSearchApi from 'torrent-search-api'
 
 const PORT = process.env.PORT || 3001
@@ -35,18 +36,43 @@ const torrents = new Map()
 
 const PLUGIN_DIR = path.join(process.cwd(), 'search-plugins')
 if (!fs.existsSync(PLUGIN_DIR)) fs.mkdirSync(PLUGIN_DIR, { recursive: true })
-try { TorrentSearchApi.enablePublicProviders() } catch (e) { console.warn(e.message) }
-async function loadCustomProviders() {
-  for (const f of fs.readdirSync(PLUGIN_DIR)) {
-    if (!f.endsWith('.js')) continue
-    try {
-      const mod = await import(pathToFileURL(path.join(PLUGIN_DIR, f)).href)
-      const m = mod.default || mod
-      if (m && m.name && typeof m.search === 'function') TorrentSearchApi.addProvider(m)
-    } catch (e) { console.warn('plugin load failed', f, e.message) }
-  }
+const PYTHON_SHIMS = path.join(process.cwd(), 'python')
+const RUNNER = path.join(PYTHON_SHIMS, 'run_plugin.py')
+
+function listPlugins() {
+  try { return fs.readdirSync(PLUGIN_DIR).filter(f => f.endsWith('.py')).sort() } catch { return [] }
 }
-await loadCustomProviders()
+
+function runPythonPlugin(pluginFile, query, timeoutMs = 12000) {
+  return new Promise((resolve) => {
+    const pluginPath = path.join(PLUGIN_DIR, pluginFile)
+    const child = spawn('python3', [RUNNER, pluginPath, query, 'all'], { stdio: ['ignore', 'pipe', 'pipe'] })
+    let stdout = '', stderr = '', done = false
+    const timer = setTimeout(() => {
+      if (done) return
+      done = true
+      try { child.kill('SIGKILL') } catch {}
+      resolve({ plugin: pluginFile, results: [], error: 'timeout' })
+    }, timeoutMs)
+    child.stdout.on('data', d => { stdout += d })
+    child.stderr.on('data', d => { stderr += d })
+    child.on('close', () => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      let results = []
+      try { results = JSON.parse(stdout || '[]') } catch (e) { /* ignore */ }
+      if (!Array.isArray(results)) results = []
+      resolve({ plugin: pluginFile, results, error: stderr.trim() || null })
+    })
+    child.on('error', (e) => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      resolve({ plugin: pluginFile, results: [], error: String(e.message) })
+    })
+  })
+}
 
 const MIME = { mp4:'video/mp4', webm:'video/webm', ogv:'video/ogg', mov:'video/quicktime', mkv:'video/x-matroska', avi:'video/x-msvideo', mp3:'audio/mpeg', m4a:'audio/mp4', srt:'text/plain', vtt:'text/vtt', txt:'text/plain' }
 function mimeFor(name){ const ext=(name.split('.').pop()||'').toLowerCase(); return MIME[ext]||'application/octet-stream' }
@@ -175,29 +201,53 @@ app.get('/api/torrent/:id/file/:index', (req,res)=>{
 })
 
 app.get('/api/search/providers', (req,res)=>{
-  res.json(TorrentSearchApi.getProviders().map(p=>({name:p.name, public:!!p.public})))
+  res.json(listPlugins().map(f => ({ name: f, public: true })))
 })
 
 app.get('/api/search', async (req,res)=>{
   const q=(req.query.q||'').toString().trim()
   if(!q) return res.status(400).json({error:'q required'})
   const limit=Math.min(parseInt(req.query.limit||'40',10)||40,100)
-  const cat=req.query.category||'All'
-  try{
-    const results=await Promise.race([
-      TorrentSearchApi.search(q, cat, limit),
-      new Promise((_,r)=>setTimeout(()=>r(new Error('search timeout')),25000)),
-    ])
-    const out=(results||[]).map(r=>({title:r.title,size:r.size,seeds:r.seeds,peers:r.peers,time:r.time,magnet:r.magnet||null,link:r.link||null,provider:r.provider||null}))
-    const needMag=out.filter(r=>!r.magnet&&r.link).slice(0,15)
-    await Promise.all(needMag.map(async r=>{ try { r.magnet=await TorrentSearchApi.getMagnet(r) } catch {} }))
-    res.json({query:q, results:out})
-  } catch(e){ res.status(500).json({error:String(e&&e.message||e)}) }
+  const plugins = listPlugins()
+  if (plugins.length === 0) {
+    // fallback to built-in torrent-search-api
+    try {
+      TorrentSearchApi.enablePublicProviders()
+      const results = await Promise.race([
+        TorrentSearchApi.search(q, 'All', limit),
+        new Promise((_,r)=>setTimeout(()=>r(new Error('search timeout')),12000)),
+      ])
+      const out=(results||[]).map(r=>({title:r.title,size:r.size,seeds:r.seeds,peers:r.peers,magnet:r.magnet||null,link:r.link||null,provider:r.provider||null}))
+      return res.json({query:q, results:out.slice(0,limit)})
+    } catch(e){ return res.status(500).json({error:String(e&&e.message||e)}) }
+  }
+  // run all plugins in parallel with per-plugin timeout
+  const runs = await Promise.all(plugins.map(p => runPythonPlugin(p, q, 12000)))
+  const aggregated = []
+  const errors = []
+  for (const r of runs) {
+    if (r.error) errors.push({ plugin: r.plugin, error: r.error })
+    for (const item of r.results) aggregated.push(item)
+  }
+  // de-dup by magnet/link
+  const seen = new Set()
+  const unique = []
+  for (const r of aggregated) {
+    const key = r.magnet || r.link || r.title
+    if (seen.has(key)) continue
+    seen.add(key)
+    unique.push(r)
+  }
+  res.json({ query: q, results: unique.slice(0, limit), errors })
 })
 
 app.get('/api/plugins', (req,res)=>{
-  res.json({builtin:TorrentSearchApi.getProviders().map(p=>p.name), customDir:PLUGIN_DIR,
-    note:'Native qBittorrent .py plugins are not executed. Drop JS providers in search-plugins/ exporting {name,search}. Built-in providers cover the same major indexers.'})
+  res.json({
+    plugins: listPlugins(),
+    pluginDir: PLUGIN_DIR,
+    runner: RUNNER,
+    note: 'Drop qBittorrent-style .py plugins into search-plugins/. They are executed with a novaprinter/helpers shim. See python/ for the shim.',
+  })
 })
 
 app.get('/api/health', (req,res)=>res.json({ok:true, auth: TOKEN!=='torview-dev'}))
