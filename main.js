@@ -26,6 +26,8 @@ const els = {
   modalProgress: document.getElementById('modalProgress'),
   modalStatus: document.getElementById('modalStatus'),
   reopenBtn: document.getElementById('reopenBtn'),
+  historyList: document.getElementById('historyList'),
+  historyEmpty: document.getElementById('historyEmpty'),
   fileInput: document.getElementById('fileInput'),
 }
 
@@ -36,6 +38,7 @@ let enabled = new Set()
 let results = []
 let sortState = { key: 'seeds', dir: 'desc' }
 const addedCache = new Map()
+let history = []
 
 function fmtBytes(n) {
   if (!Number.isFinite(n)) return '?'
@@ -250,41 +253,108 @@ async function previewMagnet(magnet) {
 
 function streamUrl(id, fileIndex) { return `/api/torrent/${id}/file/${fileIndex}` }
 
+function mainFileIndex(info) {
+  const files = info.files || []
+  if (!files.length) return 0
+  const largest = files.reduce((a,b)=> (b.length||0)>(a.length||0)?b:a, files[0])
+  return files.indexOf(largest)
+}
+
 function openPreview(info) {
   current = info
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
   els.reopenBtn.classList.add('hidden')
   els.modalTitle.textContent = info.name || 'Preview'
-  const largest = (info.files||[]).reduce((a,b)=> (b.length||0)>(a.length||0)?b:a, info.files && info.files[0])
-  const idx = largest ? info.files.indexOf(largest) : 0
-  els.modalVideo.src = streamUrl(info.id, idx)
-  els.modalVideo.load()
+  const idx = mainFileIndex(info)
+  const url = streamUrl(info.id, idx)
+  if (els.modalVideo.getAttribute('src') !== url) {
+    els.modalVideo.src = url
+    els.modalVideo.load()
+  }
   els.modal.classList.remove('hidden')
   els.modalStatus.textContent = 'Loading…'
   els.modalProgress.style.width = '0%'
   startPolling()
+  pushHistory(info)
 }
+// click outside → minimize (keep the torrent + playback position)
+function minimizePreview() {
+  if (els.modal.classList.contains('hidden')) return
+  els.modal.classList.add('hidden')
+  els.modalVideo.pause()
+  if (current) {
+    els.reopenBtn.textContent = '▶ ' + (current.name || 'Player')
+    els.reopenBtn.classList.remove('hidden')
+  }
+}
+// Close button → close entirely
 function closePreview() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
   els.modal.classList.add('hidden')
   els.modalVideo.pause()
   els.modalVideo.removeAttribute('src'); els.modalVideo.load()
-  if (current) els.reopenBtn.classList.remove('hidden')
+  els.reopenBtn.classList.add('hidden')
+  if (current) {
+    const id = current.id
+    current = null
+    for (const [m, cached] of addedCache) if (cached.id === id) addedCache.delete(m)
+    api('/api/torrent/' + id, { method: 'DELETE' }).catch(()=>{})
+  }
 }
 function reopenPreview() {
   if (!current) return
   els.reopenBtn.classList.add('hidden')
-  els.modalTitle.textContent = current.name || 'Preview'
-  const largest = (current.files||[]).reduce((a,b)=> (b.length||0)>(a.length||0)?b:a, current.files && current.files[0])
-  const idx = largest ? current.files.indexOf(largest) : 0
-  els.modalVideo.src = streamUrl(current.id, idx)
-  els.modalVideo.load()
   els.modal.classList.remove('hidden')
+  if (!els.modalVideo.getAttribute('src')) {
+    els.modalVideo.src = streamUrl(current.id, mainFileIndex(current))
+    els.modalVideo.load()
+  }
   startPolling()
 }
 els.modalClose.addEventListener('click', closePreview)
-els.modal.addEventListener('click', e => { if (e.target === els.modal) closePreview() })
+els.modal.addEventListener('click', e => { if (e.target === els.modal) minimizePreview() })
 els.reopenBtn.addEventListener('click', reopenPreview)
+
+// ---- history ----
+function magnetLabel(magnet) {
+  const m = /[?&]dn=([^&]+)/.exec(magnet || '')
+  return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : 'Torrent'
+}
+function loadHistory() {
+  try { history = JSON.parse(localStorage.getItem('torview-history') || '[]') } catch { history = [] }
+  renderHistory()
+}
+function saveHistory() {
+  try { localStorage.setItem('torview-history', JSON.stringify(history.slice(0, 30))) } catch {}
+}
+function pushHistory(info) {
+  const magnet = info._magnet
+  if (!magnet) return
+  history = history.filter(h => h.magnet !== magnet)
+  history.unshift({ magnet, title: info.name || magnetLabel(magnet), at: Date.now() })
+  saveHistory(); renderHistory()
+}
+function renderHistory() {
+  if (!els.historyList) return
+  els.historyList.innerHTML = ''
+  els.historyEmpty.classList.toggle('hidden', history.length > 0)
+  for (const h of history) {
+    const row = document.createElement('div')
+    row.className = 'flex items-start gap-2'
+    const btn = document.createElement('button')
+    btn.className = 'flex-1 text-left text-xs text-muted hover:text-accent transition truncate'
+    btn.textContent = h.title
+    btn.title = h.title
+    btn.onclick = () => previewMagnet(h.magnet)
+    const del = document.createElement('button')
+    del.className = 'text-xs text-dim hover:text-accent transition'
+    del.textContent = '✕'
+    del.title = 'Remove from history'
+    del.onclick = () => { history = history.filter(x => x !== h); saveHistory(); renderHistory() }
+    row.append(btn, del)
+    els.historyList.appendChild(row)
+  }
+}
 
 function startPolling() {
   if (pollTimer) clearInterval(pollTimer)
@@ -320,4 +390,5 @@ els.plusBtn.addEventListener('click', () => els.fileInput.click())
 els.homeBtn.addEventListener('click', showLanding)
 
 loadPlugins()
+loadHistory()
 showLanding()

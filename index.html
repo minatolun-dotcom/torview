@@ -33,30 +33,37 @@
         </form>
       </div>
     </header>
-    <main class="max-w-6xl mx-auto px-6 py-6 space-y-5">
-      <section class="card-surface p-4">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="font-display font-semibold text-sm">Search plugins</h3>
-          <button id="toggleAllPlugins" class="text-xs text-muted hover:text-text transition">Toggle all</button>
-        </div>
-        <div id="pluginList" class="flex flex-wrap gap-2"></div>
-      </section>
+    <main class="max-w-6xl mx-auto px-6 py-6 grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-5">
+      <div class="space-y-5 min-w-0">
+        <section class="card-surface p-4">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-display font-semibold text-sm">Search plugins</h3>
+            <button id="toggleAllPlugins" class="text-xs text-muted hover:text-text transition">Toggle all</button>
+          </div>
+          <div id="pluginList" class="flex flex-wrap gap-2"></div>
+        </section>
 
-      <section class="card-surface overflow-hidden">
-        <div class="px-4 py-3 border-b border-border flex items-center justify-between">
-          <h3 class="font-display font-semibold text-sm">Results</h3>
-          <span id="resultsCount" class="text-xs text-muted"></span>
-        </div>
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead class="bg-surface-2/40">
-              <tr id="tableHead"></tr>
-            </thead>
-            <tbody id="tableBody" class="divide-y divide-border"></tbody>
-          </table>
-        </div>
-        <div id="emptyState" class="hidden p-8 text-center text-muted text-sm">No results. Try another query or enable more plugins.</div>
-      </section>
+        <section class="card-surface overflow-hidden">
+          <div class="px-4 py-3 border-b border-border flex items-center justify-between">
+            <h3 class="font-display font-semibold text-sm">Results</h3>
+            <span id="resultsCount" class="text-xs text-muted"></span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-surface-2/40">
+                <tr id="tableHead"></tr>
+              </thead>
+              <tbody id="tableBody" class="divide-y divide-border"></tbody>
+            </table>
+          </div>
+          <div id="emptyState" class="hidden p-8 text-center text-muted text-sm">No results. Try another query or enable more plugins.</div>
+        </section>
+      </div>
+      <aside class="card-surface p-4 h-fit sticky top-20">
+        <h3 class="font-display font-semibold text-sm mb-3">History</h3>
+        <div id="historyList" class="space-y-2 text-sm"></div>
+        <div id="historyEmpty" class="text-xs text-muted">No previews yet.</div>
+      </aside>
     </main>
   </div>
 
