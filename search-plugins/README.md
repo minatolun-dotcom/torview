@@ -1,14 +1,13 @@
-# Custom search providers
+# Search plugins
 
-Drop a `.js` file here exporting:
+Drop qBittorrent-style Python plugins (`.py`) here. They are executed by the backend
+via `python/run_plugin.py` with a `novaprinter`/`helpers` shim, so plugins from
+https://github.com/qbittorrent/search-plugins/wiki/Unofficial-search-plugins work as-is.
 
-```js
-module.exports = {
-  name: 'MyProvider',
-  public: true,
-  search: async (query) => [{ title, size, seeds, peers, magnet, link, provider }]
-}
-```
+Each plugin must define `search(what, category='all')` and call
+`novaprinter.prettyPrinter({...})` with at least `link` and `name`.
 
-Restart the backend to load. Built-in providers (via torrent-search-api) are always
-enabled and cover ThePirateBay, 1337x, YTS, EZTV, Limetorrents, Rarbg, etc.
+A default `yts.py` (YTS JSON API) is included.
+
+Restart the backend after adding/removing plugins.
+EOF

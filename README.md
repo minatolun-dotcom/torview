@@ -33,8 +33,12 @@ npm run dev
 - Extract 5 short clips (~2s) at sample points.
 - Scrubber: drag to seek, live thumbnail.
 
-## Custom search plugins
-Drop a JS provider in `search-plugins/` (see `search-plugins/README.md`) and restart.
+## Search plugins
+Drop any qBittorrent-style Python plugin (`.py`) into `search-plugins/` and restart the backend.
+They are executed via `python/run_plugin.py` with a `novaprinter`/`helpers` shim, so plugins from
+https://github.com/qbittorrent/search-plugins/wiki/Unofficial-search-plugins work as-is.
+A default `yts.py` (YTS JSON API) is included. Each plugin runs in its own process with a 12s timeout;
+slow or unreachable plugins are reported in the `errors` array without blocking the rest.
 
 ## Notes
 - Native qBittorrent `.py` plugins are not executed; built-in JS providers cover the
