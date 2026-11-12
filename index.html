@@ -3,100 +3,106 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Torrent Preview</title>
-  <style>
-    :root { color-scheme: dark; }
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: system-ui, sans-serif; background: #0b0d12; color: #e6e8ee; }
-    header { padding: 16px 20px; border-bottom: 1px solid #1e2230; }
-    h1 { margin: 0; font-size: 18px; }
-    main { max-width: 1100px; margin: 0 auto; padding: 20px; }
-    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-    input[type=text], input[type=search] { flex: 1; min-width: 260px; padding: 10px 12px; border-radius: 8px; border: 1px solid #2a2f40; background: #141826; color: #e6e8ee; }
-    button { padding: 10px 14px; border-radius: 8px; border: 1px solid #2a2f40; background: #1f6feb; color: #fff; cursor: pointer; }
-    button.secondary { background: #141826; color: #e6e8ee; }
-    button:disabled { opacity: .5; cursor: not-allowed; }
-    .card { background: #141826; border: 1px solid #1e2230; border-radius: 10px; padding: 14px; margin-bottom: 14px; }
-    .notice { background: #2a1f00; border: 1px solid #5a4500; color: #ffd27a; padding: 10px 12px; border-radius: 8px; margin-bottom: 14px; font-size: 13px; }
-    video { display: none; } /* used as extraction engine only; samples shown as clips */
-    #progress { height: 8px; background: #1e2230; border-radius: 4px; overflow: hidden; margin-top: 8px; }
-    #progress > div { height: 100%; width: 0%; background: #2ea043; transition: width .2s; }
-    pre { white-space: pre-wrap; font-size: 12px; color: #9aa4bf; margin: 8px 0 0; }
-    .thumbs, .clips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
-    .thumbs img { height: 90px; border-radius: 6px; border: 1px solid #2a2f40; }
-    .clips video { width: 160px; height: 90px; }
-    .clip { display: inline-block; text-align: center; font-size: 12px; color: #9aa4bf; }
-    .results { max-height: 320px; overflow: auto; margin-top: 8px; }
-    .result { padding: 8px; border-bottom: 1px solid #1e2230; display: flex; gap: 8px; align-items: center; }
-    .result .rtitle { flex: 1; font-size: 13px; }
-    .result .rmeta { font-size: 11px; color: #9aa4bf; }
-    select { padding: 10px 12px; border-radius: 8px; border: 1px solid #2a2f40; background: #141826; color: #e6e8ee; }
-    .scrubber-row { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
-    .scrubber-row input[type=range] { flex: 1; }
-    #scrubThumb { height: 90px; border-radius: 6px; border: 1px solid #2a2f40; }
-    #providers { font-size: 11px; color: #9aa4bf; margin-top: 6px; }
-  </style>
+  <title>Torview — sample any torrent in seconds</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css" />
 </head>
-<body>
-  <header><h1>Torrent Preview — universal (backend bridge)</h1></header>
-  <main>
-    <div class="notice">
-      Universal mode: torrents are fetched by a local backend (Node + WebTorrent over TCP/UDP), so any magnet works — not just WebRTC peers.
-      Run with <code>npm run dev:full</code>. The backend also provides torrent search across the built-in providers (qBittorrent-style).
+<body class="min-h-screen">
+  <header class="sticky top-0 z-20 backdrop-blur-md bg-bg/70 border-b border-border">
+    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center text-accent font-display font-bold text-lg">T</div>
+        <div>
+          <div class="font-display font-bold text-lg leading-none tracking-tight">Torview</div>
+          <div class="text-xs text-muted mt-0.5">sample any torrent, in seconds</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <input id="tokenInput" type="text" placeholder="torview-dev" class="hidden sm:block w-44 px-3 py-1.5 rounded-lg bg-surface border border-border text-sm font-mono placeholder:text-dim focus:outline-none focus:border-accent transition" />
+        <button id="tokenBtn" class="px-3 py-1.5 rounded-lg bg-surface border border-border text-sm hover:bg-surface-2 transition">Save token</button>
+      </div>
     </div>
+  </header>
 
-    <div class="card">
-      <h3>Search torrents</h3>
-      <div class="row">
-        <input type="search" id="searchInput" placeholder="search query…" />
-        <button id="searchBtn">Search</button>
-      </div>
-      <div id="providers"></div>
-      <div class="results" id="searchResults"></div>
-    </div>
+  <main class="max-w-6xl mx-auto px-6 py-12 space-y-14">
+    <section>
+      <h1 class="font-display font-extrabold text-4xl sm:text-6xl tracking-tight leading-[0.95] max-w-3xl">
+        Preview a torrent<br/>without downloading it.
+      </h1>
+      <p class="mt-4 text-muted max-w-2xl text-lg leading-relaxed">
+        Torview pulls five random two-second cuts from five different parts of the file. Only those bytes leave the swarm — never the whole thing.
+      </p>
 
-    <div class="card">
-      <h3>Access token</h3>
-      <div class="row">
-        <input type="text" id="tokenInput" placeholder="torview-dev" />
-        <button class="secondary" id="tokenBtn">Save</button>
+      <div class="mt-8 flex gap-3">
+        <input id="searchInput" type="search" placeholder="search movies, shows, anything…" class="flex-1 min-w-0 px-5 py-4 rounded-xl bg-surface border border-border text-base placeholder:text-dim focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition" />
+        <button id="searchBtn" class="px-7 py-4 rounded-xl bg-accent text-bg font-semibold hover:brightness-110 active:scale-[0.98] transition">Search</button>
       </div>
-    </div>
-    <div class="card">
-      <h3>Add torrent</h3>
-      <div class="row">
-        <input type="text" id="torrentId" placeholder="magnet:?xt=urn:btih:… or http(s) URL" />
-        <button id="addBtn">Add</button>
-        <button class="secondary" id="fileBtn">Open .torrent</button>
-        <input type="file" id="fileInput" accept=".torrent,application/x-bittorrent" hidden />
-      </div>
-    </div>
+      <div id="providers" class="mt-3 text-xs text-dim"></div>
 
-    <div class="card">
-      <h3>Stream</h3>
-      <div class="row">
-        <select id="files"></select>
-        <button class="secondary" id="clearBtn">Clear</button>
+      <div id="searchResults" class="mt-6 divide-y divide-border rounded-2xl border border-border overflow-hidden bg-surface/40 backdrop-blur"></div>
+    </section>
+
+    <section class="card-surface p-6 sm:p-8">
+      <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+        <div>
+          <h2 class="font-display font-semibold text-xl tracking-tight">Or add directly</h2>
+          <p class="text-sm text-muted mt-1">Paste a magnet link or drop a .torrent file.</p>
+        </div>
       </div>
+      <div class="mt-5 flex flex-col sm:flex-row gap-3">
+        <input id="torrentId" type="text" placeholder="magnet:?xt=urn:btih:…" class="flex-1 min-w-0 px-4 py-3 rounded-lg bg-bg border border-border text-sm font-mono placeholder:text-dim focus:outline-none focus:border-accent transition" />
+        <button id="addBtn" class="px-5 py-3 rounded-lg bg-accent text-bg font-semibold hover:brightness-110 transition">Add</button>
+        <button id="fileBtn" class="px-5 py-3 rounded-lg bg-surface-2 border border-border text-sm hover:bg-elevated transition">Open .torrent</button>
+        <input id="fileInput" type="file" accept=".torrent,application/x-bittorrent" hidden />
+      </div>
+    </section>
+
+    <section class="space-y-6">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h2 class="font-display font-semibold text-2xl tracking-tight">Preview studio</h2>
+        <div class="flex items-center gap-3">
+          <select id="files" class="px-3 py-2 rounded-lg bg-surface border border-border text-sm focus:outline-none focus:border-accent"></select>
+          <button id="clearBtn" class="px-3 py-2 rounded-lg bg-surface-2 border border-border text-sm hover:bg-elevated transition">Clear</button>
+        </div>
+      </div>
+
+      <div class="card-surface p-5 space-y-3">
+        <div id="progress" class="progress-track"><div></div></div>
+        <pre id="status" class="text-sm text-muted font-mono whitespace-pre-wrap m-0 leading-relaxed">Ready. Search or paste a magnet link.</pre>
+      </div>
+
       <video id="video" controls preload="metadata"></video>
-      <div id="progress"><div></div></div>
-      <pre id="status">Ready.</pre>
-    </div>
 
-    <div class="card">
-      <h3>Preview</h3>
-      <div class="row">
-        <button id="previewBtn">Generate 5 frames</button>
-        <button class="secondary" id="clipBtn">Extract 5 clips</button>
+      <div class="card-surface p-5 sm:p-6 space-y-5">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h3 class="font-display font-semibold text-lg tracking-tight">Sampled clips</h3>
+            <p class="text-xs text-muted mt-0.5">Five random two-second cuts, one from each fifth of the file.</p>
+          </div>
+          <div class="flex gap-2">
+            <button id="previewBtn" class="px-4 py-2 rounded-lg bg-surface-2 border border-border text-sm hover:bg-elevated transition">Resample frames</button>
+            <button id="clipBtn" class="px-4 py-2 rounded-lg bg-accent text-bg font-semibold hover:brightness-110 transition">Extract clips</button>
+          </div>
+        </div>
+
+        <div id="thumbs" class="thumb-strip flex gap-2 flex-wrap"></div>
+
+        <div id="clips" class="flex gap-3 overflow-x-auto pb-2 snap-x"></div>
+
+        <div class="flex items-center gap-4">
+          <input id="scrubber" type="range" min="0" max="1000" value="0" class="scrubber flex-1" />
+          <img id="scrubThumb" alt="scrub preview" class="h-[72px] w-auto rounded-md border border-border bg-black" />
+        </div>
       </div>
-      <div class="thumbs" id="thumbs"></div>
-      <div class="clips" id="clips"></div>
-      <div class="scrubber-row">
-        <input type="range" id="scrubber" min="0" max="1000" value="0" />
-        <img id="scrubThumb" alt="scrub" />
-      </div>
-    </div>
+    </section>
   </main>
+
+  <footer class="max-w-6xl mx-auto px-6 py-10 text-xs text-dim border-t border-border">
+    Universal mode: Node + WebTorrent bridge. Auth via <span class="font-mono">X-Torview-Token</span>. Search across built-in providers.
+  </footer>
+
   <script type="module" src="/main.js"></script>
 </body>
 </html>

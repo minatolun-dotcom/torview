@@ -68,14 +68,16 @@ async function doSearch() {
     if (!data.results.length) { els.searchResults.textContent = 'No results'; return }
     for (const r of data.results) {
       const div = document.createElement('div')
-      div.className = 'result'
+      div.className = 'result-row'
       div.innerHTML = `
-        <div class="rtitle">${escapeHtml(r.title||'')}</div>
-        <div class="rmeta">${escapeHtml(r.provider||'')} · ${fmtBytes(parseSize(r.size))} · seeds:${r.seeds||0} peers:${r.peers||0}</div>
+        <div class="min-w-0 flex-1">
+          <div class="text-sm font-medium truncate">${escapeHtml(r.title||'')}</div>
+          <div class="text-xs text-muted mt-0.5">${escapeHtml(r.provider||'')} · ${fmtBytes(parseSize(r.size))} · seeds:${r.seeds||0} peers:${r.peers||0}</div>
+        </div>
       `
       const btn = document.createElement('button')
       btn.textContent = 'Add'
-      btn.className = 'secondary'
+      btn.className = 'px-3 py-1.5 rounded-lg bg-accent text-bg text-sm font-semibold hover:brightness-110 transition shrink-0'
       btn.onclick = () => addMagnet(r.magnet || r.link)
       div.appendChild(btn)
       els.searchResults.appendChild(div)
@@ -233,8 +235,9 @@ async function sampleAll() {
     vid.muted = true
     vid.title = fmtTime(t)
     const wrap = document.createElement('div')
-    wrap.className = 'clip'
+    wrap.className = 'clip-tile'
     const label = document.createElement('div')
+    label.className = 'text-xs text-muted mt-1.5 text-center font-mono'
     label.textContent = fmtTime(t)
     wrap.appendChild(label)
     wrap.appendChild(vid)
