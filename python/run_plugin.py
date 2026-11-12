@@ -36,8 +36,34 @@ try:
 
     # call search with flexible signature
     search_fn = getattr(mod, 'search', None)
-    if search_fn is None:
-        raise RuntimeError('plugin has no search() function')
+    instance = None
+    if not callable(search_fn):
+        # class-based plugin (qBittorrent nova3 style): instantiate the class
+        import inspect
+        classes = [c for c in mod.__dict__.values() if isinstance(c, type)]
+        target_cls = None
+        base = os.path.splitext(os.path.basename(plugin_path))[0].lower()
+        for c in classes:
+            if c.__name__.lower() == base:
+                target_cls = c
+                break
+        if target_cls is None and len(classes) == 1:
+            target_cls = classes[0]
+        if target_cls is None and classes:
+            # pick the class whose name is closest
+            for c in classes:
+                if 'search' in [m for m in dir(c) if not m.startswith('__')]:
+                    target_cls = c
+                    break
+        if target_cls is None:
+            raise RuntimeError('plugin has no search() function or class')
+        try:
+            instance = target_cls()
+        except Exception:
+            instance = target_cls
+        search_fn = getattr(instance, 'search', None)
+        if not callable(search_fn):
+            raise RuntimeError('plugin class has no search() method')
     try:
         search_fn(query, category)
     except TypeError:

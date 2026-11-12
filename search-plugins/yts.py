@@ -16,7 +16,7 @@ TRACKERS = [
 def search(what, category='all'):
     query = urllib.parse.quote(what)
     url = 'https://yts.mx/api/v2/list_movies.json?query_term=%s&limit=40&sort_by=seeds' % query
-    data, _ = retrieve_url(url)
+    data = retrieve_url(url)
     if not data:
         return
     try:
