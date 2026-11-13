@@ -206,7 +206,7 @@ function renderTableHead() {
   els.tableHead.innerHTML = ''
   for (const c of cols) {
     const th = document.createElement('th')
-    th.className = 'px-4 py-3 text-left text-xs font-semibold text-muted uppercase tracking-wide whitespace-nowrap select-none ' + (c.key ? 'cursor-pointer hover:text-text' : '')
+    th.className = 'px-4 py-3 text-left text-xs font-medium text-muted whitespace-nowrap select-none ' + (c.key ? 'cursor-pointer hover:text-text' : '')
     let label = c.label
     if (c.key && sortState.key === c.key) label += sortState.dir === 'asc' ? ' ↑' : ' ↓'
     th.textContent = label
