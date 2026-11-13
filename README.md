@@ -29,7 +29,7 @@ npm run dev
 - Search torrents across all enabled plugins (movies, TV, anime and animation sources).
 - Add by magnet/URL or `.torrent` file.
 - Stream selected file with HTTP Range support (partial download).
-- Preview overlay with media controls and download progress; click outside to minimize, Close to stop.
+- Preview overlay plays a short server-extracted clip (≈8s) so only a few MB are downloaded; click outside to minimize, Close to stop.
 
 ## Search plugins
 Drop any qBittorrent-style Python plugin (`.py`) into `search-plugins/` and restart the backend.

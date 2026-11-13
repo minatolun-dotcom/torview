@@ -267,7 +267,8 @@ async function previewMagnet(magnet) {
   } catch (e) { els.modalStatus.textContent = 'Error: ' + e.message }
 }
 
-function streamUrl(id, fileIndex) { return `/api/torrent/${id}/file/${fileIndex}` }
+function streamUrl(id, fileIndex) { return `/api/torrent/${id}/preview/${fileIndex}` }
+function fullFileUrl(id, fileIndex) { return `/api/torrent/${id}/file/${fileIndex}` }
 
 function mainFileIndex(info) {
   const files = info.files || []
@@ -284,11 +285,12 @@ function openPreview(info) {
   const idx = mainFileIndex(info)
   const url = streamUrl(info.id, idx)
   if (els.modalVideo.getAttribute('src') !== url) {
+    els.modalStatus.textContent = 'Generating preview clip…'
     els.modalVideo.src = url
     els.modalVideo.load()
   }
   els.modal.classList.remove('hidden')
-  els.modalStatus.textContent = 'Loading…'
+  if (!els.modalStatus.textContent.startsWith('Generating')) els.modalStatus.textContent = 'Loading…'
   els.modalProgress.style.width = '0%'
   startPolling()
   pushHistory(info)
@@ -329,6 +331,16 @@ function reopenPreview() {
 }
 els.modalClose.addEventListener('click', closePreview)
 els.modal.addEventListener('click', e => { if (e.target === els.modal) minimizePreview() })
+els.modalVideo.addEventListener('error', () => {
+  if (!current) return
+  const idx = mainFileIndex(current)
+  const full = fullFileUrl(current.id, idx)
+  if (els.modalVideo.getAttribute('src') !== full) {
+    els.modalStatus.textContent = 'Clip failed; streaming full file…'
+    els.modalVideo.src = full
+    els.modalVideo.load()
+  }
+})
 els.reopenBtn.addEventListener('click', reopenPreview)
 
 // ---- history ----

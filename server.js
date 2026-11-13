@@ -33,6 +33,8 @@ app.use((req, res, next) => {
 
 const client = new WebTorrent()
 const torrents = new Map()
+const CLIPS_DIR = path.join(os.tmpdir(), 'torview-clips')
+try { fs.mkdirSync(CLIPS_DIR, { recursive: true }) } catch {}
 
 const PLUGIN_DIR = path.join(process.cwd(), 'search-plugins')
 if (!fs.existsSync(PLUGIN_DIR)) fs.mkdirSync(PLUGIN_DIR, { recursive: true })
@@ -162,6 +164,8 @@ app.delete('/api/torrent/:id', (req,res)=>{
   if(!entry) return res.status(404).json({error:'not found'})
   try { client.remove(entry.torrent, ()=>{}) } catch {}
   torrents.delete(req.params.id)
+  try { fs.rmSync(path.join(CLIPS_DIR, req.params.id + '_*'), { force: true }) } catch {}
+  try { for (const f of fs.readdirSync(CLIPS_DIR)) if (f.startsWith(req.params.id + '_')) fs.rmSync(path.join(CLIPS_DIR, f), { force: true }) } catch {}
   res.json({ok:true})
 })
 
@@ -201,6 +205,63 @@ app.get('/api/torrent/:id/file/:index', (req,res)=>{
   } else {
     sendStream(0,size-1)
   }
+})
+
+app.get('/api/torrent/:id/preview/:index', async (req,res)=>{
+  const entry = torrents.get(req.params.id)
+  if (!entry) return res.status(404).end()
+  const t = entry.torrent
+  const idx = Number(req.params.index)
+  if (!Number.isInteger(idx) || idx < 0 || idx >= t.files.length) return res.status(404).end()
+  const clipPath = path.join(CLIPS_DIR, `${req.params.id}_${idx}.mp4`)
+  if (!fs.existsSync(clipPath)) {
+    const fileUrl = `http://127.0.0.1:${PORT}/api/torrent/${req.params.id}/file/${idx}`
+    const hdrs = `X-Torview-Token: ${TOKEN}\r\n`
+    let failed = null
+    await new Promise((resolve) => {
+      try { if (fs.existsSync(clipPath)) fs.rmSync(clipPath, { force: true }) } catch {}
+      const args = [
+        '-y',
+        ...(hdrs ? ['-headers', hdrs] : []),
+        '-i', fileUrl,
+        '-t', '8',
+        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
+        '-c:a', 'aac', '-b:a', '96k',
+        '-movflags', '+faststart',
+        clipPath
+      ]
+      const child = spawn('ffmpeg', args, { stdio: ['ignore','pipe','pipe'] })
+      let stderr = ''
+      child.stderr.on('data', d => { stderr += d })
+      const timer = setTimeout(() => { try { child.kill('SIGKILL') } catch {} }, 90000)
+      child.on('close', (code) => {
+        clearTimeout(timer)
+        if (code === 0 && fs.existsSync(clipPath) && fs.statSync(clipPath).size > 0) resolve()
+        else { failed = (stderr || '').slice(-400) || ('ffmpeg exited ' + code); try { fs.rmSync(clipPath, { force: true }) } catch {}; resolve() }
+      })
+      child.on('error', (e) => { clearTimeout(timer); failed = String(e.message); resolve() })
+    })
+    if (failed) return res.status(500).json({ error: 'clip generation failed: ' + failed })
+  }
+  if (!fs.existsSync(clipPath)) return res.status(500).json({ error: 'clip not available' })
+  const size = fs.statSync(clipPath).size
+  // support Range for the (small) clip file
+  const range = req.headers.range
+  if (range) {
+    const m = /bytes=(\d+)-(\d*)/.exec(range)
+    if (m) {
+      const start = parseInt(m[1],10)
+      let end = m[2] ? parseInt(m[2],10) : size - 1
+      if (!Number.isFinite(start) || start >= size) { res.status(416).set('Content-Range', `bytes */${size}`).end(); return }
+      if (end >= size) end = size - 1
+      if (start > end) { res.status(416).set('Content-Range', `bytes */${size}`).end(); return }
+      res.status(206).set('Content-Range', `bytes ${start}-${end}/${size}`).set('Accept-Ranges','bytes').set('Content-Length', end-start+1).set('Content-Type','video/mp4')
+      fs.createReadStream(clipPath, { start, end }).pipe(res)
+      return
+    }
+  }
+  res.set('Content-Type','video/mp4').set('Content-Length', size).set('Accept-Ranges','bytes')
+  fs.createReadStream(clipPath).pipe(res)
 })
 
 app.get('/api/search/providers', (req,res)=>{
